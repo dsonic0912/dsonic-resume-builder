@@ -1,0 +1,36 @@
+.container {
+  margin: 40px auto;
+  max-width: 1200px;
+}
+
+.d-flex {
+  display: flex;
+}
+
+:root {
+  --highlight-color-left: #82C0CC;
+  --background-color-left: #3943B7;
+  --text-color-left: #ffffff;
+  --highlight-color-right: #3943B7;
+  --background-color-right: #ffffff;
+  --text-color-right: #000505;
+}
+
+body {
+  font-family: sans-serif;
+  font-size: 16px;
+}
+
+[contenteditable="true"] {
+  border-radius: 2px;
+  background-color: #cacaca71;
+  padding: 2px;
+}
+
+a:link {
+  color: #fff
+}
+
+a:visited {
+  color: #fff;
+}

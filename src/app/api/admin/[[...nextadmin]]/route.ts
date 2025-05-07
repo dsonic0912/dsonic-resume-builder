@@ -1,3 +1,4 @@
+import { NextRequest } from "next/server";
 import prisma from "../../../../../prisma";
 import { createHandler } from "@premieroctet/next-admin/appHandler";
 import options from "../../../../../nextAdminOptions";
@@ -5,7 +6,41 @@ import options from "../../../../../nextAdminOptions";
 const { run } = createHandler({
   apiBasePath: "/api/admin",
   prisma,
-  options
+  options,
 });
- 
-export { run as DELETE, run as GET, run as POST };
+
+export const GET = async (
+  req: NextRequest,
+  context: { params: { nextadmin: string[] } },
+) => {
+  try {
+    return await run(req, { params: Promise.resolve(context.params) });
+  } catch (error) {
+    console.error("Admin API error:", error);
+    return new Response("Internal Server Error", { status: 500 });
+  }
+};
+
+export const POST = async (
+  req: NextRequest,
+  context: { params: { nextadmin: string[] } },
+) => {
+  try {
+    return await run(req, { params: Promise.resolve(context.params) });
+  } catch (error) {
+    console.error("Admin API error:", error);
+    return new Response("Internal Server Error", { status: 500 });
+  }
+};
+
+export const DELETE = async (
+  req: NextRequest,
+  context: { params: { nextadmin: string[] } },
+) => {
+  try {
+    return await run(req, { params: Promise.resolve(context.params) });
+  } catch (error) {
+    console.error("Admin API error:", error);
+    return new Response("Internal Server Error", { status: 500 });
+  }
+};

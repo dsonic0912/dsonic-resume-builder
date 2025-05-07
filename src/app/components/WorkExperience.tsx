@@ -329,6 +329,161 @@ function WorkExperienceItem({ work }: WorkExperienceItemProps) {
     }
   };
 
+  // Function to extract list items from description JSX
+  const extractListItems = (): string[] => {
+    if (!description || typeof description === "string") return [];
+
+    // Try to find list items in the description
+    let items: string[] = [];
+
+    // Handle React elements
+    if (React.isValidElement(description)) {
+      const children = (description as any).props?.children;
+
+      if (Array.isArray(children)) {
+        // Look for ul element in children
+        children.forEach((child: any) => {
+          if (React.isValidElement(child) && child.type === "ul") {
+            const listItems = (child as any).props?.children;
+            if (Array.isArray(listItems)) {
+              items = listItems
+                .map((item: any) => {
+                  if (React.isValidElement(item) && item.type === "li") {
+                    const itemChildren = (item as any).props?.children;
+                    return itemChildren ? itemChildren.toString() : "";
+                  }
+                  return "";
+                })
+                .filter(Boolean);
+            }
+          }
+        });
+      }
+    }
+
+    return items;
+  };
+
+  // Extract text content from description, excluding the list
+  const getDescriptionTextWithoutList = (): string => {
+    if (typeof description === "string") return description;
+
+    if (React.isValidElement(description)) {
+      const children = (description as any).props?.children;
+      if (Array.isArray(children)) {
+        return children
+          .filter(
+            (child: any) =>
+              !React.isValidElement(child) || (child as any).type !== "ul",
+          )
+          .map((child: any) => (typeof child === "string" ? child : ""))
+          .join("");
+      }
+    }
+
+    return "";
+  };
+
+  // State for list item management
+  const [isListItemDialogOpen, setIsListItemDialogOpen] = useState(false);
+  const [editingListItemIndex, setEditingListItemIndex] = useState(-1);
+  const [newListItemText, setNewListItemText] = useState("");
+
+  // Function to add a new list item
+  const handleAddListItem = (newItem: string) => {
+    if (workIndex === -1 || !newItem.trim()) return;
+
+    const items = extractListItems();
+    const newItems = [...items, newItem];
+    const descriptionText = getDescriptionTextWithoutList();
+
+    const newDescription = (
+      <>
+        {descriptionText}
+        <ul className="list-inside list-disc">
+          {newItems.map((item, idx) => (
+            <li key={idx}>{item}</li>
+          ))}
+        </ul>
+      </>
+    );
+
+    updateField(["work", workIndex.toString(), "description"], newDescription);
+    setIsListItemDialogOpen(false);
+    setNewListItemText("");
+  };
+
+  // Function to edit a list item
+  const handleEditListItem = (index: number, newText: string) => {
+    if (workIndex === -1) return;
+
+    const items = extractListItems();
+    if (index < 0 || index >= items.length) return;
+
+    const newItems = [...items];
+    newItems[index] = newText;
+    const descriptionText = getDescriptionTextWithoutList();
+
+    const newDescription = (
+      <>
+        {descriptionText}
+        <ul className="list-inside list-disc">
+          {newItems.map((item, idx) => (
+            <li key={idx}>{item}</li>
+          ))}
+        </ul>
+      </>
+    );
+
+    updateField(["work", workIndex.toString(), "description"], newDescription);
+    setIsListItemDialogOpen(false);
+    setEditingListItemIndex(-1);
+    setNewListItemText("");
+  };
+
+  // Function to delete a list item
+  const handleDeleteListItem = (index: number) => {
+    if (workIndex === -1) return;
+
+    const items = extractListItems();
+    if (index < 0 || index >= items.length) return;
+
+    const newItems = items.filter((_, idx) => idx !== index);
+    const descriptionText = getDescriptionTextWithoutList();
+
+    const newDescription = (
+      <>
+        {descriptionText}
+        {newItems.length > 0 && (
+          <ul className="list-inside list-disc">
+            {newItems.map((item, idx) => (
+              <li key={idx}>{item}</li>
+            ))}
+          </ul>
+        )}
+      </>
+    );
+
+    updateField(["work", workIndex.toString(), "description"], newDescription);
+  };
+
+  // Open dialog to add a new list item
+  const openAddListItemDialog = () => {
+    setEditingListItemIndex(-1);
+    setNewListItemText("");
+    setIsListItemDialogOpen(true);
+  };
+
+  // Open dialog to edit a list item
+  const openEditListItemDialog = (index: number) => {
+    const items = extractListItems();
+    if (index >= 0 && index < items.length) {
+      setEditingListItemIndex(index);
+      setNewListItemText(items[index]);
+      setIsListItemDialogOpen(true);
+    }
+  };
+
   const handleLinkUpdate = () => {
     if (workIndex !== -1) {
       updateField(["work", workIndex.toString(), "link"], editedLink || null);
@@ -420,6 +575,46 @@ function WorkExperienceItem({ work }: WorkExperienceItemProps) {
             multiline={true}
             dialogTitle="Edit Job Description"
           />
+
+          {/* List items management */}
+          {isEditMode && (
+            <div className="mt-2">
+              <button
+                onClick={openAddListItemDialog}
+                className="flex items-center text-xs text-primary hover:underline"
+              >
+                <PlusIcon className="mr-1 h-3 w-3" /> Add Bullet Point
+              </button>
+
+              {extractListItems().length > 0 && (
+                <ul className="mt-2 list-inside list-disc">
+                  {extractListItems().map((item, index) => (
+                    <li key={index} className="group relative">
+                      {item}
+                      <span className="absolute right-0 top-1/2 flex -translate-y-1/2 space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-4 w-4 p-0"
+                          onClick={() => openEditListItemDialog(index)}
+                        >
+                          <PencilIcon className="h-2 w-2" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-4 w-4 p-0 text-destructive"
+                          onClick={() => handleDeleteListItem(index)}
+                        >
+                          <XIcon className="h-2 w-2" />
+                        </Button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
         <div className="mt-2">
           <BadgeList
@@ -428,6 +623,47 @@ function WorkExperienceItem({ work }: WorkExperienceItemProps) {
             workIndex={workIndex}
           />
         </div>
+
+        {/* Dialog for adding/editing list items */}
+        <Dialog
+          open={isListItemDialogOpen}
+          onOpenChange={setIsListItemDialogOpen}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {editingListItemIndex === -1
+                  ? "Add Bullet Point"
+                  : "Edit Bullet Point"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <textarea
+                value={newListItemText}
+                onChange={(e) => setNewListItemText(e.target.value)}
+                className="min-h-[100px] w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                placeholder="Enter bullet point text"
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsListItemDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() =>
+                  editingListItemIndex === -1
+                    ? handleAddListItem(newListItemText)
+                    : handleEditListItem(editingListItemIndex, newListItemText)
+                }
+              >
+                {editingListItemIndex === -1 ? "Add" : "Save"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
 
       <Dialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>

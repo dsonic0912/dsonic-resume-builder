@@ -17,8 +17,8 @@ export var RESUME_DATA = {
     "Detail-oriented Full Stack Engineer dedicated to building high-quality products.",
   summary: (
     <>
-      Full Stack Developer with 10+ years of experience building scalable web
-      applications and data platforms using Python, Django, React, and cloud
+      Senior Software Developer with 10+ years of experience building scalable
+      web applications and data platforms using Python, Django, React, and cloud
       services (GCP, AWS). Skilled in performance optimization, modern frontend
       migrations, data pipelines, and CI/CD. Strong track record of delivering
       high-quality, maintainable solutions in fast-paced, collaborative

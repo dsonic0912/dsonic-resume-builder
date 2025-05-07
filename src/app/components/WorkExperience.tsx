@@ -41,20 +41,61 @@ function BadgeList({ className, badges, workIndex }: BadgeListProps) {
   const [editingIndex, setEditingIndex] = useState(-1);
   const [newBadge, setNewBadge] = useState("");
 
-  if (badges.length === 0 && !className?.includes("sm:hidden")) {
+  // Ensure badges is always an array
+  const badgesArray = Array.isArray(badges) ? badges : [];
+
+  const handleAddBadge = () => {
+    if (newBadge.trim() === "") return;
+
+    // Add the new badge to the bottom of the list
+    const updatedBadges = [...badgesArray, newBadge];
+    updateField(["work", workIndex.toString(), "badges"], updatedBadges);
+
+    setNewBadge("");
+    setIsDialogOpen(false);
+    console.log("Badge added:", newBadge, "to work index:", workIndex);
+  };
+
+  if (badgesArray.length === 0 && !className?.includes("sm:hidden")) {
     return isEditMode ? (
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-5 px-1 text-xs"
-        onClick={() => {
-          setIsEditing(false);
-          setNewBadge("");
-          setIsDialogOpen(true);
-        }}
-      >
-        <PlusIcon className="mr-1 h-3 w-3" /> Add Skills
-      </Button>
+      <>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-5 px-1 text-xs"
+          onClick={() => {
+            setIsEditing(false);
+            setNewBadge("");
+            setIsDialogOpen(true);
+            console.log("Add Skills button clicked, dialog should open");
+          }}
+        >
+          <PlusIcon className="mr-1 h-3 w-3" /> Add Skills
+        </Button>
+
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add New Skill</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <input
+                type="text"
+                value={newBadge}
+                onChange={(e) => setNewBadge(e.target.value)}
+                className="w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                placeholder="Enter skill or technology"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleAddBadge}>Add</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
     ) : null;
   }
 
@@ -66,7 +107,7 @@ function BadgeList({ className, badges, workIndex }: BadgeListProps) {
   };
 
   const handleDeleteBadge = (index: number) => {
-    const updatedBadges = [...badges];
+    const updatedBadges = [...badgesArray];
     updatedBadges.splice(index, 1);
     updateField(["work", workIndex.toString(), "badges"], updatedBadges);
   };
@@ -74,22 +115,11 @@ function BadgeList({ className, badges, workIndex }: BadgeListProps) {
   const handleSaveBadge = () => {
     if (editingBadge.trim() === "") return;
 
-    const updatedBadges = [...badges];
+    const updatedBadges = [...badgesArray];
     updatedBadges[editingIndex] = editingBadge;
     updateField(["work", workIndex.toString(), "badges"], updatedBadges);
 
     setIsEditing(false);
-    setIsDialogOpen(false);
-  };
-
-  const handleAddBadge = () => {
-    if (newBadge.trim() === "") return;
-
-    // Add the new badge to the bottom of the list
-    const updatedBadges = [...badges, newBadge];
-    updateField(["work", workIndex.toString(), "badges"], updatedBadges);
-
-    setNewBadge("");
     setIsDialogOpen(false);
   };
 
@@ -105,7 +135,7 @@ function BadgeList({ className, badges, workIndex }: BadgeListProps) {
           className={cn("inline-flex list-none flex-wrap gap-1 p-0", className)}
           aria-label="Technologies used"
         >
-          {badges.map((badge, index) => (
+          {badgesArray.map((badge, index) => (
             <li key={`${badge}-${index}`} className="group relative">
               <Badge
                 variant="secondary"
@@ -145,6 +175,7 @@ function BadgeList({ className, badges, workIndex }: BadgeListProps) {
                   setIsEditing(false);
                   setNewBadge("");
                   setIsDialogOpen(true);
+                  console.log("Add button clicked, dialog should open");
                 }}
               >
                 <PlusIcon className="mr-1 h-3 w-3" /> Add
@@ -170,7 +201,7 @@ function BadgeList({ className, badges, workIndex }: BadgeListProps) {
                   ? setEditingBadge(e.target.value)
                   : setNewBadge(e.target.value)
               }
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               placeholder="Enter skill or technology"
             />
           </div>
@@ -188,24 +219,25 @@ function BadgeList({ className, badges, workIndex }: BadgeListProps) {
   );
 }
 
-interface WorkPeriodProps {
-  start: WorkExperience["start"];
-  end?: WorkExperience["end"];
-}
+// Note: WorkPeriod component is not currently used but kept for future reference
+// interface WorkPeriodProps {
+//   start: WorkExperience["start"];
+//   end?: WorkExperience["end"];
+// }
 
-/**
- * Displays the work period in a consistent format
- */
-function WorkPeriod({ start, end }: WorkPeriodProps) {
-  return (
-    <div
-      className="text-sm tabular-nums text-gray-500"
-      aria-label={`Employment period: ${start} to ${end ?? "Present"}`}
-    >
-      {start} - {end ?? "Present"}
-    </div>
-  );
-}
+// /**
+//  * Displays the work period in a consistent format
+//  */
+// function WorkPeriod({ start, end }: WorkPeriodProps) {
+//   return (
+//     <div
+//       className="text-sm tabular-nums text-gray-500"
+//       aria-label={`Employment period: ${start} to ${end ?? "Present"}`}
+//     >
+//       {start} - {end ?? "Present"}
+//     </div>
+//   );
+// }
 
 interface CompanyLinkProps {
   company: WorkExperience["company"];
@@ -408,7 +440,7 @@ function WorkExperienceItem({ work }: WorkExperienceItemProps) {
               type="text"
               value={editedLink}
               onChange={(e) => setEditedLink(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               placeholder="https://example.com"
             />
           </div>
@@ -446,7 +478,7 @@ export function WorkExperience({ work }: WorkExperienceProps) {
     const newWork = {
       company: "New Company",
       link: "#",
-      badges: ["Skill 1", "Skill 2"],
+      badges: [], // Initialize with an empty array to allow adding badges later
       title: "Job Title",
       logo: null,
       start: currentYear.toString(), // Use current year as default

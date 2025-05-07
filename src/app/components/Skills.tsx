@@ -142,7 +142,7 @@ function SkillsList({ skills, className }: SkillsListProps) {
                   ? setEditingSkill(e.target.value)
                   : setNewSkill(e.target.value)
               }
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               placeholder="Enter skill"
             />
           </div>

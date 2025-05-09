@@ -569,51 +569,61 @@ function WorkExperienceItem({ work }: WorkExperienceItemProps) {
 
       <CardContent>
         <div className="mt-2 text-pretty text-xs text-foreground/80 print:mt-1 print:text-[12px]">
-          <EditableContent
-            content={description}
-            onSave={handleDescriptionUpdate}
-            multiline={true}
-            dialogTitle="Edit Job Description"
-          />
+          {!isEditMode ? (
+            <EditableContent
+              content={description}
+              onSave={handleDescriptionUpdate}
+              multiline={true}
+              dialogTitle="Edit Job Description"
+            />
+          ) : (
+            <>
+              {/* In edit mode, show only the description text without the list */}
+              <EditableContent
+                content={getDescriptionTextWithoutList()}
+                onSave={handleDescriptionUpdate}
+                multiline={true}
+                dialogTitle="Edit Job Description"
+              />
 
-          {/* List items management */}
-          {isEditMode && (
-            <div className="mt-2">
-              <button
-                onClick={openAddListItemDialog}
-                className="flex items-center text-xs text-primary hover:underline"
-              >
-                <PlusIcon className="mr-1 h-3 w-3" /> Add Bullet Point
-              </button>
+              {/* List items management */}
+              <div className="mt-2">
+                <button
+                  onClick={openAddListItemDialog}
+                  className="flex items-center text-xs text-primary hover:underline"
+                >
+                  <PlusIcon className="mr-1 h-3 w-3" /> Add Bullet Point
+                </button>
 
-              {extractListItems().length > 0 && (
-                <ul className="mt-2 list-inside list-disc">
-                  {extractListItems().map((item, index) => (
-                    <li key={index} className="group relative">
-                      {item}
-                      <span className="absolute right-0 top-1/2 flex -translate-y-1/2 space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-4 w-4 p-0"
-                          onClick={() => openEditListItemDialog(index)}
-                        >
-                          <PencilIcon className="h-2 w-2" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-4 w-4 p-0 text-destructive"
-                          onClick={() => handleDeleteListItem(index)}
-                        >
-                          <XIcon className="h-2 w-2" />
-                        </Button>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+                {extractListItems().length > 0 && (
+                  <ul className="mt-2 list-inside list-disc">
+                    {extractListItems().map((item, index) => (
+                      <li key={index} className="group relative">
+                        {item}
+                        <span className="absolute right-0 top-1/2 flex -translate-y-1/2 space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-4 w-4 p-0"
+                            onClick={() => openEditListItemDialog(index)}
+                          >
+                            <PencilIcon className="h-2 w-2" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-4 w-4 p-0 text-destructive"
+                            onClick={() => handleDeleteListItem(index)}
+                          >
+                            <XIcon className="h-2 w-2" />
+                          </Button>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
           )}
         </div>
         <div className="mt-2">

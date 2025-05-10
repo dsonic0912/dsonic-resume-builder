@@ -9,18 +9,121 @@ import { Button } from "@/components/ui/button";
 import { EditableContent } from "@/components/ui/editable-content";
 import { useResume } from "@/context/resume-context";
 import React, { useState } from "react";
-import { PlusIcon, XIcon, PencilIcon } from "lucide-react";
+import { PlusIcon, XIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { useEditMode } from "@/context/edit-mode-context";
 
-type WorkExperience = (typeof RESUME_DATA)["work"][number];
+/**
+ * Extracts task descriptions from the description field
+ * This is used for backward compatibility with the old format
+ */
+function extractTasksFromDescription(description: any): WorkTask[] {
+  // If description is a string, check if it contains a list
+  if (typeof description === "string") {
+    const descStr = description as string;
+    // If the description contains an HTML list, try to extract the items
+    if (descStr.includes("<ul") && descStr.includes("<li")) {
+      const tempDiv = document.createElement("div");
+      tempDiv.innerHTML = descStr;
+
+      const tasks: WorkTask[] = [];
+      const liElements = tempDiv.querySelectorAll("li");
+
+      liElements.forEach((li) => {
+        tasks.push({ description: li.textContent || "" });
+      });
+
+      return tasks;
+    }
+    return [];
+  }
+
+  // If description is null or undefined, return empty array
+  if (!description) return [];
+
+  // Try to find list items in the description
+  let tasks: WorkTask[] = [];
+
+  // Handle React elements
+  if (React.isValidElement(description)) {
+    const children = (description as any).props?.children;
+
+    if (Array.isArray(children)) {
+      // Look for ul element in children
+      children.forEach((child: any) => {
+        if (React.isValidElement(child) && child.type === "ul") {
+          const listItems = (child as any).props?.children;
+
+          if (Array.isArray(listItems)) {
+            tasks = listItems
+              .map((item: any) => {
+                if (React.isValidElement(item) && item.type === "li") {
+                  const itemChildren = (item as any).props?.children;
+
+                  // Convert React element children to string properly
+                  if (typeof itemChildren === "string") {
+                    return { description: itemChildren };
+                  } else if (typeof itemChildren === "number") {
+                    return { description: String(itemChildren) };
+                  } else if (Array.isArray(itemChildren)) {
+                    return {
+                      description: itemChildren
+                        .map((child: any) => {
+                          if (typeof child === "string") return child;
+                          if (typeof child === "number") return String(child);
+                          if (React.isValidElement(child)) {
+                            const childContent = (child as any).props?.children;
+                            if (typeof childContent === "string")
+                              return childContent;
+                            if (typeof childContent === "number")
+                              return String(childContent);
+                            return "";
+                          }
+                          return "";
+                        })
+                        .join(""),
+                    };
+                  } else if (React.isValidElement(itemChildren)) {
+                    const childContent = (itemChildren as any).props?.children;
+                    if (typeof childContent === "string")
+                      return { description: childContent };
+                    if (typeof childContent === "number")
+                      return { description: String(childContent) };
+                    return { description: "" };
+                  } else {
+                    // For any other type, convert to string safely
+                    try {
+                      return { description: String(itemChildren) };
+                    } catch (e) {
+                      return { description: "" };
+                    }
+                  }
+                }
+                return null;
+              })
+              .filter(Boolean) as WorkTask[];
+          }
+        }
+      });
+    }
+  }
+
+  return tasks;
+}
+
+// Extend the WorkExperience type to include tasks
+type WorkExperience = (typeof RESUME_DATA)["work"][number] & {
+  tasks?: WorkTask[];
+};
 type WorkBadges = readonly string[];
+type WorkTask = { id?: string; description: string };
 
 interface BadgeListProps {
   className?: string;
@@ -278,14 +381,31 @@ interface WorkExperienceItemProps {
  * Handles responsive layout for badges (mobile/desktop)
  */
 function WorkExperienceItem({ work }: WorkExperienceItemProps) {
-  const { company, link, badges, title, start, end, description } = work;
-  const { updateField } = useResume();
+  const { company, link, badges, title, start, end } = work;
+  // Ensure description is treated as a string
+  const description =
+    typeof work.description === "string"
+      ? work.description
+      : work.description
+        ? String(work.description)
+        : "";
+
+  const { updateField, resumeData } = useResume();
   const { isEditMode } = useEditMode();
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [editedLink, setEditedLink] = useState(link || "");
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-  // Find the index of this work item
-  const workIndex = RESUME_DATA.work.findIndex(
+  // Initialize tasks from work object or from description if tasks don't exist
+  const initialTasks =
+    work.tasks && Array.isArray(work.tasks)
+      ? work.tasks
+      : extractTasksFromDescription(description);
+
+  const [tasks, setTasks] = useState<WorkTask[]>(initialTasks || []);
+
+  // Find the index of this work item using the current resumeData instead of RESUME_DATA
+  const workIndex = resumeData.work.findIndex(
     (w) => w.company === company && w.start === start,
   );
 
@@ -329,158 +449,75 @@ function WorkExperienceItem({ work }: WorkExperienceItemProps) {
     }
   };
 
-  // Function to extract list items from description JSX
-  const extractListItems = (): string[] => {
-    if (!description || typeof description === "string") return [];
+  // State for task management
+  const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
+  const [editingTaskIndex, setEditingTaskIndex] = useState(-1);
+  const [newTaskText, setNewTaskText] = useState("");
 
-    // Try to find list items in the description
-    let items: string[] = [];
+  // Function to add a new task
+  const handleAddTask = (newTaskDescription: string) => {
+    if (workIndex === -1 || !newTaskDescription.trim()) return;
 
-    // Handle React elements
-    if (React.isValidElement(description)) {
-      const children = (description as any).props?.children;
+    const newTask: WorkTask = { description: newTaskDescription };
+    const updatedTasks = [...tasks, newTask];
 
-      if (Array.isArray(children)) {
-        // Look for ul element in children
-        children.forEach((child: any) => {
-          if (React.isValidElement(child) && child.type === "ul") {
-            const listItems = (child as any).props?.children;
-            if (Array.isArray(listItems)) {
-              items = listItems
-                .map((item: any) => {
-                  if (React.isValidElement(item) && item.type === "li") {
-                    const itemChildren = (item as any).props?.children;
-                    return itemChildren ? itemChildren.toString() : "";
-                  }
-                  return "";
-                })
-                .filter(Boolean);
-            }
-          }
-        });
-      }
-    }
+    // Update the tasks in the work object
+    updateField(["work", workIndex.toString(), "tasks"], updatedTasks);
 
-    return items;
+    // Update local state
+    setTasks(updatedTasks);
+    setIsTaskDialogOpen(false);
+    setNewTaskText("");
   };
 
-  // Extract text content from description, excluding the list
-  const getDescriptionTextWithoutList = (): string => {
-    if (typeof description === "string") return description;
-
-    if (React.isValidElement(description)) {
-      const children = (description as any).props?.children;
-      if (Array.isArray(children)) {
-        return children
-          .filter(
-            (child: any) =>
-              !React.isValidElement(child) || (child as any).type !== "ul",
-          )
-          .map((child: any) => (typeof child === "string" ? child : ""))
-          .join("");
-      }
-    }
-
-    return "";
-  };
-
-  // State for list item management
-  const [isListItemDialogOpen, setIsListItemDialogOpen] = useState(false);
-  const [editingListItemIndex, setEditingListItemIndex] = useState(-1);
-  const [newListItemText, setNewListItemText] = useState("");
-
-  // Function to add a new list item
-  const handleAddListItem = (newItem: string) => {
-    if (workIndex === -1 || !newItem.trim()) return;
-
-    const items = extractListItems();
-    const newItems = [...items, newItem];
-    const descriptionText = getDescriptionTextWithoutList();
-
-    const newDescription = (
-      <>
-        {descriptionText}
-        <ul className="list-inside list-disc">
-          {newItems.map((item, idx) => (
-            <li key={idx}>{item}</li>
-          ))}
-        </ul>
-      </>
-    );
-
-    updateField(["work", workIndex.toString(), "description"], newDescription);
-    setIsListItemDialogOpen(false);
-    setNewListItemText("");
-  };
-
-  // Function to edit a list item
-  const handleEditListItem = (index: number, newText: string) => {
+  // Function to edit a task
+  const handleEditTask = (index: number, newDescription: string) => {
     if (workIndex === -1) return;
+    if (index < 0 || index >= tasks.length) return;
 
-    const items = extractListItems();
-    if (index < 0 || index >= items.length) return;
+    const updatedTasks = [...tasks];
+    updatedTasks[index] = {
+      ...updatedTasks[index],
+      description: newDescription,
+    };
 
-    const newItems = [...items];
-    newItems[index] = newText;
-    const descriptionText = getDescriptionTextWithoutList();
+    // Update the tasks in the work object
+    updateField(["work", workIndex.toString(), "tasks"], updatedTasks);
 
-    const newDescription = (
-      <>
-        {descriptionText}
-        <ul className="list-inside list-disc">
-          {newItems.map((item, idx) => (
-            <li key={idx}>{item}</li>
-          ))}
-        </ul>
-      </>
-    );
-
-    updateField(["work", workIndex.toString(), "description"], newDescription);
-    setIsListItemDialogOpen(false);
-    setEditingListItemIndex(-1);
-    setNewListItemText("");
+    // Update local state
+    setTasks(updatedTasks);
+    setIsTaskDialogOpen(false);
+    setEditingTaskIndex(-1);
+    setNewTaskText("");
   };
 
-  // Function to delete a list item
-  const handleDeleteListItem = (index: number) => {
+  // Function to delete a task
+  const handleDeleteTask = (index: number) => {
     if (workIndex === -1) return;
+    if (index < 0 || index >= tasks.length) return;
 
-    const items = extractListItems();
-    if (index < 0 || index >= items.length) return;
+    const updatedTasks = tasks.filter((_, idx) => idx !== index);
 
-    const newItems = items.filter((_, idx) => idx !== index);
-    const descriptionText = getDescriptionTextWithoutList();
+    // Update the tasks in the work object
+    updateField(["work", workIndex.toString(), "tasks"], updatedTasks);
 
-    const newDescription = (
-      <>
-        {descriptionText}
-        {newItems.length > 0 && (
-          <ul className="list-inside list-disc">
-            {newItems.map((item, idx) => (
-              <li key={idx}>{item}</li>
-            ))}
-          </ul>
-        )}
-      </>
-    );
-
-    updateField(["work", workIndex.toString(), "description"], newDescription);
+    // Update local state
+    setTasks(updatedTasks);
   };
 
-  // Open dialog to add a new list item
-  const openAddListItemDialog = () => {
-    setEditingListItemIndex(-1);
-    setNewListItemText("");
-    setIsListItemDialogOpen(true);
+  // Open dialog to add a new task
+  const openAddTaskDialog = () => {
+    setEditingTaskIndex(-1);
+    setNewTaskText("");
+    setIsTaskDialogOpen(true);
   };
 
-  // Open dialog to edit a list item
-  const openEditListItemDialog = (index: number) => {
-    const items = extractListItems();
-    if (index >= 0 && index < items.length) {
-      setEditingListItemIndex(index);
-      setNewListItemText(items[index]);
-      setIsListItemDialogOpen(true);
+  // Open dialog to edit a task
+  const openEditTaskDialog = (index: number) => {
+    if (index >= 0 && index < tasks.length) {
+      setEditingTaskIndex(index);
+      setNewTaskText(tasks[index].description);
+      setIsTaskDialogOpen(true);
     }
   };
 
@@ -494,6 +531,16 @@ function WorkExperienceItem({ work }: WorkExperienceItemProps) {
   const openLinkDialog = () => {
     setEditedLink(link || "");
     setIsLinkDialogOpen(true);
+  };
+
+  const handleDeleteWork = () => {
+    if (workIndex !== -1) {
+      // Create a new array without the work item at workIndex
+      const updatedWork = [...resumeData.work];
+      updatedWork.splice(workIndex, 1);
+      updateField(["work"], updatedWork);
+      setIsDeleteDialogOpen(false);
+    }
   };
 
   const cardClassName =
@@ -540,6 +587,17 @@ function WorkExperienceItem({ work }: WorkExperienceItemProps) {
                   </svg>
                 </Button>
               )}
+              {isEditMode && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-1 h-6 w-6 p-0 text-destructive hover:bg-destructive/10"
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                  title="Delete work experience"
+                >
+                  <Trash2Icon className="h-3 w-3" />
+                </Button>
+              )}
             </div>
             <BadgeList
               className="hidden gap-x-1 sm:inline-flex"
@@ -570,42 +628,55 @@ function WorkExperienceItem({ work }: WorkExperienceItemProps) {
       <CardContent>
         <div className="mt-2 text-pretty text-xs text-foreground/80 print:mt-1 print:text-[12px]">
           {!isEditMode ? (
-            <EditableContent
-              content={description}
-              onSave={handleDescriptionUpdate}
-              multiline={true}
-              dialogTitle="Edit Job Description"
-            />
-          ) : (
             <>
-              {/* In edit mode, show only the description text without the list */}
               <EditableContent
-                content={getDescriptionTextWithoutList()}
+                content={description}
                 onSave={handleDescriptionUpdate}
                 multiline={true}
                 dialogTitle="Edit Job Description"
               />
 
-              {/* List items management */}
+              {/* Display tasks in view mode */}
+              {tasks && tasks.length > 0 && (
+                <ul className="mt-2 list-inside list-disc">
+                  {tasks.map((task) => (
+                    <li key={task.id || task.description}>
+                      {task.description}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          ) : (
+            <>
+              {/* In edit mode, show the description text */}
+              <EditableContent
+                content={description}
+                onSave={handleDescriptionUpdate}
+                multiline={true}
+                dialogTitle="Edit Job Description"
+              />
+
+              {/* Tasks management */}
               <div className="mt-2">
                 <button
-                  onClick={openAddListItemDialog}
+                  onClick={openAddTaskDialog}
                   className="flex items-center text-xs text-primary hover:underline"
                 >
                   <PlusIcon className="mr-1 h-3 w-3" /> Add Bullet Point
                 </button>
 
-                {extractListItems().length > 0 && (
+                {tasks && tasks.length > 0 && (
                   <ul className="mt-2 list-inside list-disc">
-                    {extractListItems().map((item, index) => (
-                      <li key={index} className="group relative">
-                        {item}
+                    {tasks.map((task, index) => (
+                      <li key={task.id || index} className="group relative">
+                        {task.description}
                         <span className="absolute right-0 top-1/2 flex -translate-y-1/2 space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-4 w-4 p-0"
-                            onClick={() => openEditListItemDialog(index)}
+                            onClick={() => openEditTaskDialog(index)}
                           >
                             <PencilIcon className="h-2 w-2" />
                           </Button>
@@ -613,7 +684,7 @@ function WorkExperienceItem({ work }: WorkExperienceItemProps) {
                             variant="ghost"
                             size="icon"
                             className="h-4 w-4 p-0 text-destructive"
-                            onClick={() => handleDeleteListItem(index)}
+                            onClick={() => handleDeleteTask(index)}
                           >
                             <XIcon className="h-2 w-2" />
                           </Button>
@@ -634,23 +705,20 @@ function WorkExperienceItem({ work }: WorkExperienceItemProps) {
           />
         </div>
 
-        {/* Dialog for adding/editing list items */}
-        <Dialog
-          open={isListItemDialogOpen}
-          onOpenChange={setIsListItemDialogOpen}
-        >
+        {/* Dialog for adding/editing tasks */}
+        <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {editingListItemIndex === -1
+                {editingTaskIndex === -1
                   ? "Add Bullet Point"
                   : "Edit Bullet Point"}
               </DialogTitle>
             </DialogHeader>
             <div className="py-4">
               <textarea
-                value={newListItemText}
-                onChange={(e) => setNewListItemText(e.target.value)}
+                value={newTaskText}
+                onChange={(e) => setNewTaskText(e.target.value)}
                 className="min-h-[100px] w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 placeholder="Enter bullet point text"
               />
@@ -658,18 +726,18 @@ function WorkExperienceItem({ work }: WorkExperienceItemProps) {
             <DialogFooter>
               <Button
                 variant="outline"
-                onClick={() => setIsListItemDialogOpen(false)}
+                onClick={() => setIsTaskDialogOpen(false)}
               >
                 Cancel
               </Button>
               <Button
                 onClick={() =>
-                  editingListItemIndex === -1
-                    ? handleAddListItem(newListItemText)
-                    : handleEditListItem(editingListItemIndex, newListItemText)
+                  editingTaskIndex === -1
+                    ? handleAddTask(newTaskText)
+                    : handleEditTask(editingTaskIndex, newTaskText)
                 }
               >
-                {editingListItemIndex === -1 ? "Add" : "Save"}
+                {editingTaskIndex === -1 ? "Add" : "Save"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -698,6 +766,30 @@ function WorkExperienceItem({ work }: WorkExperienceItemProps) {
               Cancel
             </Button>
             <Button onClick={handleLinkUpdate}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Work Experience</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this work experience? This action
+              cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteWork}>
+              Delete
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -730,6 +822,7 @@ export function WorkExperience({ work }: WorkExperienceProps) {
       start: currentYear.toString(), // Use current year as default
       end: null,
       description: "Job description goes here.",
+      tasks: [], // Initialize with an empty array for tasks
     };
 
     // Add the new work experience to the beginning of the array

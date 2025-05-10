@@ -136,7 +136,18 @@ export function EditableContent({
         ) : (
           <>
             <span className="inline-block w-full">
-              {content || placeholder}
+              {typeof content === "string"
+                ? content
+                : React.isValidElement(content)
+                  ? React.Children.toArray(content.props.children).map(
+                      (child, i) =>
+                        typeof child === "string"
+                          ? child
+                          : React.isValidElement(child) && child.type === "ul"
+                            ? null // Don't render the list in view mode
+                            : "",
+                    )
+                  : content || placeholder}
             </span>
             {isEditMode && (
               <Button
